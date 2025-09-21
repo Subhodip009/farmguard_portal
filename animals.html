@@ -1,0 +1,37 @@
+<?php
+include 'config.php';
+$result = mysqli_query($conn, "SELECT * FROM animals");
+?>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>All Animals - FarmGuard</title>
+  <style>
+    body { font-family: Arial; background: #f8fafc; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; background: white; }
+    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+    th { background: #2563eb; color: white; }
+    img { max-width: 80px; }
+  </style>
+</head>
+<body>
+  <h1>All Registered Animals 🐄</h1>
+  <table>
+    <tr>
+      <th>Tag</th><th>Name</th><th>Type</th><th>Age</th><th>Health</th><th>Vaccination</th><th>QR Code</th><th>Profile</th>
+    </tr>
+    <?php while($row = mysqli_fetch_assoc($result)): ?>
+      <tr>
+        <td><?php echo $row['animal_tag']; ?></td>
+        <td><?php echo $row['name']; ?></td>
+        <td><?php echo $row['type']; ?></td>
+        <td><?php echo $row['age']; ?></td>
+        <td><?php echo $row['health_status']; ?></td>
+        <td><?php echo $row['last_vaccination']; ?></td>
+        <td><img src="qrcodes/<?php echo $row['animal_tag']; ?>.png"></td>
+        <td><a href="animal.php?tag=<?php echo $row['animal_tag']; ?>">View</a></td>
+      </tr>
+    <?php endwhile; ?>
+  </table>
+</body>
+</html>

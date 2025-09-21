@@ -1,0 +1,210 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/config.php';
+
+// Protect page: only admin can access
+if (!isset($_SESSION['worker_id']) || $_SESSION['role'] !== 'admin') {
+    header("Location: ../login.php");
+    exit;
+}
+
+$success = '';
+$error = '';
+
+// Handle Add Visitor
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'add') {
+    $name = trim($_POST['name']);
+    $purpose = trim($_POST['purpose']);
+    $date = $_POST['date'];
+    $time_in = $_POST['time_in'];
+    $time_out = $_POST['time_out'];
+    $recorded_by = $_SESSION['worker_id'];
+
+    $stmt = $conn->prepare("INSERT INTO visitors (name, purpose, date, time_in, time_out, recorded_by) VALUES (?,?,?,?,?,?)");
+    $stmt->bind_param("sssssi", $name, $purpose, $date, $time_in, $time_out, $recorded_by);
+    if ($stmt->execute()) {
+        $success = "Visitor added successfully.";
+    } else {
+        $error = "Error: " . $conn->error;
+    }
+    $stmt->close();
+}
+
+// Handle Edit Visitor
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'edit') {
+    $id = (int) $_POST['id'];
+    $name = trim($_POST['name']);
+    $purpose = trim($_POST['purpose']);
+    $date = $_POST['date'];
+    $time_in = $_POST['time_in'];
+    $time_out = $_POST['time_out'];
+
+    $stmt = $conn->prepare("UPDATE visitors SET name=?, purpose=?, date=?, time_in=?, time_out=? WHERE id=?");
+    $stmt->bind_param("sssssi", $name, $purpose, $date, $time_in, $time_out, $id);
+
+    if ($stmt->execute()) {
+        $success = "Visitor updated successfully.";
+    } else {
+        $error = "Error updating visitor: " . $conn->error;
+    }
+    $stmt->close();
+}
+
+// Handle Delete Visitor
+if (isset($_GET['delete'])) {
+    $id = (int) $_GET['delete'];
+    $conn->query("DELETE FROM visitors WHERE id=$id");
+    $success = "Visitor deleted.";
+}
+
+// Fetch visitors list
+$visitors = $conn->query("
+    SELECT v.*, w.username AS recorder
+    FROM visitors v
+    LEFT JOIN workers w ON v.recorded_by = w.id
+    ORDER BY v.date DESC, v.time_in DESC
+");
+
+// Fetch single visitor for editing
+$editVisitor = null;
+if (isset($_GET['edit'])) {
+    $id = (int) $_GET['edit'];
+    $stmt = $conn->prepare("SELECT * FROM visitors WHERE id=?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $editVisitor = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Visitor Log - FarmGuard Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family:Arial, sans-serif; background:#f9fafb; color:#333; }
+    header { background:#2563eb; color:white; padding:1rem; display:flex; justify-content:space-between; align-items:center; }
+    header a { background:#1e3a8a; color:white; padding:0.5rem 1rem; border-radius:6px; text-decoration:none; }
+
+    .container { padding:2rem; }
+    h1 { color:#2563eb; margin-top:0; }
+
+    table { width:100%; border-collapse:collapse; margin-top:1rem; background:white; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    th, td { padding:0.75rem; border-bottom:1px solid #ddd; text-align:left; }
+    th { background:#f1f5f9; }
+
+    .btn { padding:0.4rem 0.8rem; border-radius:6px; text-decoration:none; font-size:0.85rem; }
+    .btn-danger { background:#dc2626; color:white; }
+    .btn-danger:hover { background:#b91c1c; }
+    .btn-edit { background:#2563eb; color:white; }
+    .btn-edit:hover { background:#1e3a8a; }
+
+    form { background:white; padding:1rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:2rem; }
+    label { display:block; margin-top:0.5rem; }
+    input, textarea { width:100%; padding:0.6rem; border:1px solid #ddd; border-radius:6px; margin-top:0.25rem; }
+    button { margin-top:1rem; padding:0.6rem 1rem; border:none; border-radius:6px; background:#2563eb; color:white; font-weight:bold; cursor:pointer; }
+
+    .msg { margin:1rem 0; padding:0.75rem; border-radius:6px; }
+    .success { background:#d1fae5; color:#065f46; }
+    .error { background:#fee2e2; color:#b91c1c; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>FarmGuard Admin</div>
+    <a href="index.php">Dashboard</a>
+  </header>
+
+  <div class="container">
+    <h1>Visitor Log</h1>
+
+    <?php if ($success): ?>
+      <div class="msg success"><?= htmlspecialchars($success) ?></div>
+    <?php endif; ?>
+    <?php if ($error): ?>
+      <div class="msg error"><?= htmlspecialchars($error) ?></div>
+    <?php endif; ?>
+
+    <!-- Add/Edit Visitor Form -->
+    <form method="post">
+      <?php if ($editVisitor): ?>
+        <h3>Edit Visitor</h3>
+        <input type="hidden" name="action" value="edit">
+        <input type="hidden" name="id" value="<?= $editVisitor['id'] ?>">
+
+        <label>Name</label>
+        <input type="text" name="name" value="<?= htmlspecialchars($editVisitor['name']) ?>" required>
+
+        <label>Purpose</label>
+        <input type="text" name="purpose" value="<?= htmlspecialchars($editVisitor['purpose']) ?>">
+
+        <label>Date</label>
+        <input type="date" name="date" value="<?= $editVisitor['date'] ?>" required>
+
+        <label>Time In</label>
+        <input type="time" name="time_in" value="<?= $editVisitor['time_in'] ?>">
+
+        <label>Time Out</label>
+        <input type="time" name="time_out" value="<?= $editVisitor['time_out'] ?>">
+
+        <button type="submit">Update Visitor</button>
+        <a href="visitors.php" class="btn btn-edit">Cancel</a>
+      <?php else: ?>
+        <h3>Add New Visitor</h3>
+        <input type="hidden" name="action" value="add">
+
+        <label>Name</label>
+        <input type="text" name="name" required>
+
+        <label>Purpose</label>
+        <input type="text" name="purpose">
+
+        <label>Date</label>
+        <input type="date" name="date" required>
+
+        <label>Time In</label>
+        <input type="time" name="time_in">
+
+        <label>Time Out</label>
+        <input type="time" name="time_out">
+
+        <button type="submit">Add Visitor</button>
+      <?php endif; ?>
+    </form>
+
+    <!-- Visitors Table -->
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Purpose</th>
+          <th>Date</th>
+          <th>Time In</th>
+          <th>Time Out</th>
+          <th>Recorded By</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php while ($v = $visitors->fetch_assoc()): ?>
+          <tr>
+            <td><?= $v['id'] ?></td>
+            <td><?= htmlspecialchars($v['name']) ?></td>
+            <td><?= htmlspecialchars($v['purpose']) ?></td>
+            <td><?= $v['date'] ?></td>
+            <td><?= $v['time_in'] ?></td>
+            <td><?= $v['time_out'] ?></td>
+            <td><?= htmlspecialchars($v['recorder'] ?? 'Unknown') ?></td>
+            <td>
+              <a class="btn btn-edit" href="?edit=<?= $v['id'] ?>">Edit</a>
+              <a class="btn btn-danger" href="?delete=<?= $v['id'] ?>" onclick="return confirm('Delete this visitor?')">Delete</a>
+            </td>
+          </tr>
+        <?php endwhile; ?>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/config.php';
+
+// Protect page: only admin can access
+if (!isset($_SESSION['worker_id']) || $_SESSION['role'] !== 'admin') {
+    header("Location: ../login.php");
+    exit;
+}
+
+$success = '';
+$error = '';
+
+// Handle Add Record
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'add') {
+    $animal_id = trim($_POST['animal_id']);
+    $date = $_POST['date'];
+    $condition = trim($_POST['health_condition']);
+    $treatment = trim($_POST['treatment']);
+    $worker_id = $_SESSION['worker_id'];
+
+    $stmt = $conn->prepare("INSERT INTO animal_health (animal_id, date, health_condition, treatment, worker_id) VALUES (?,?,?,?,?)");
+    $stmt->bind_param("ssssi", $animal_id, $date, $condition, $treatment, $worker_id);
+    if ($stmt->execute()) {
+        $success = "Health record added successfully.";
+    } else {
+        $error = "Error: " . $conn->error;
+    }
+    $stmt->close();
+}
+
+// Handle Edit Record
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'edit') {
+    $id = (int) $_POST['id'];
+    $animal_id = trim($_POST['animal_id']);
+    $date = $_POST['date'];
+    $condition = trim($_POST['health_condition']);
+    $treatment = trim($_POST['treatment']);
+
+    $stmt = $conn->prepare("UPDATE animal_health SET animal_id=?, date=?, health_condition=?, treatment=? WHERE id=?");
+    $stmt->bind_param("ssssi", $animal_id, $date, $condition, $treatment, $id);
+
+    if ($stmt->execute()) {
+        $success = "Health record updated successfully.";
+    } else {
+        $error = "Error updating record: " . $conn->error;
+    }
+    $stmt->close();
+}
+
+// Handle Delete Record
+if (isset($_GET['delete'])) {
+    $id = (int) $_GET['delete'];
+    $conn->query("DELETE FROM animal_health WHERE id=$id");
+    $success = "Health record deleted.";
+}
+
+// Fetch all records
+$records = $conn->query("
+    SELECT h.*, w.username 
+    FROM animal_health h
+    LEFT JOIN workers w ON h.worker_id = w.id
+    ORDER BY h.date DESC, h.created_at DESC
+");
+
+// Fetch single record for editing
+$editRecord = null;
+if (isset($_GET['edit'])) {
+    $id = (int) $_GET['edit'];
+    $stmt = $conn->prepare("SELECT * FROM animal_health WHERE id=?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $editRecord = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Animal Health Records - FarmGuard Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family:Arial, sans-serif; background:#f9fafb; color:#333; }
+    header { background:#2563eb; color:white; padding:1rem; display:flex; justify-content:space-between; align-items:center; }
+    header a { background:#1e3a8a; color:white; padding:0.5rem 1rem; border-radius:6px; text-decoration:none; }
+
+    .container { padding:2rem; }
+    h1 { color:#2563eb; margin-top:0; }
+
+    table { width:100%; border-collapse:collapse; margin-top:1rem; background:white; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    th, td { padding:0.75rem; border-bottom:1px solid #ddd; text-align:left; }
+    th { background:#f1f5f9; }
+
+    .btn { padding:0.4rem 0.8rem; border-radius:6px; text-decoration:none; font-size:0.85rem; }
+    .btn-danger { background:#dc2626; color:white; }
+    .btn-danger:hover { background:#b91c1c; }
+    .btn-edit { background:#2563eb; color:white; }
+    .btn-edit:hover { background:#1e3a8a; }
+
+    form { background:white; padding:1rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:2rem; }
+    label { display:block; margin-top:0.5rem; }
+    input, textarea { width:100%; padding:0.6rem; border:1px solid #ddd; border-radius:6px; margin-top:0.25rem; }
+    button { margin-top:1rem; padding:0.6rem 1rem; border:none; border-radius:6px; background:#2563eb; color:white; font-weight:bold; cursor:pointer; }
+
+    .msg { margin:1rem 0; padding:0.75rem; border-radius:6px; }
+    .success { background:#d1fae5; color:#065f46; }
+    .error { background:#fee2e2; color:#b91c1c; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>FarmGuard Admin</div>
+    <a href="index.php">Dashboard</a>
+  </header>
+
+  <div class="container">
+    <h1>Animal Health Records</h1>
+
+    <?php if ($success): ?>
+      <div class="msg success"><?= htmlspecialchars($success) ?></div>
+    <?php endif; ?>
+    <?php if ($error): ?>
+      <div class="msg error"><?= htmlspecialchars($error) ?></div>
+    <?php endif; ?>
+
+    <!-- Add/Edit Record Form -->
+    <form method="post">
+      <?php if ($editRecord): ?>
+        <h3>Edit Record</h3>
+        <input type="hidden" name="action" value="edit">
+        <input type="hidden" name="id" value="<?= $editRecord['id'] ?>">
+
+        <label>Animal ID</label>
+        <input type="text" name="animal_id" value="<?= htmlspecialchars($editRecord['animal_id']) ?>" required>
+
+        <label>Date</label>
+        <input type="date" name="date" value="<?= $editRecord['date'] ?>" required>
+
+        <label>Condition</label>
+        <input type="text" name="health_condition" value="<?= htmlspecialchars($editRecord['health_condition']) ?>">
+
+        <label>Treatment</label>
+        <textarea name="treatment" rows="3"><?= htmlspecialchars($editRecord['treatment']) ?></textarea>
+
+        <button type="submit">Update Record</button>
+        <a href="health.php" class="btn btn-edit">Cancel</a>
+      <?php else: ?>
+        <h3>Add New Record</h3>
+        <input type="hidden" name="action" value="add">
+
+        <label>Animal ID</label>
+        <input type="text" name="animal_id" required>
+
+        <label>Date</label>
+        <input type="date" name="date" required>
+
+        <label>Condition</label>
+        <input type="text" name="health_condition">
+
+        <label>Treatment</label>
+        <textarea name="treatment" rows="3"></textarea>
+
+        <button type="submit">Add Record</button>
+      <?php endif; ?>
+    </form>
+
+    <!-- Records Table -->
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Animal ID</th>
+          <th>Date</th>
+          <th>Condition</th>
+          <th>Treatment</th>
+          <th>Recorded By</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php while ($r = $records->fetch_assoc()): ?>
+          <tr>
+            <td><?= $r['id'] ?></td>
+            <td><?= htmlspecialchars($r['animal_id']) ?></td>
+            <td><?= $r['date'] ?></td>
+            <td><?= htmlspecialchars($r['health_condition']) ?></td>
+            <td><?= htmlspecialchars($r['treatment']) ?></td>
+            <td><?= htmlspecialchars($r['username'] ?? 'Unknown') ?></td>
+            <td>
+              <a class="btn btn-edit" href="?edit=<?= $r['id'] ?>">Edit</a>
+              <a class="btn btn-danger" href="?delete=<?= $r['id'] ?>" onclick="return confirm('Delete this record?')">Delete</a>
+            </td>
+          </tr>
+        <?php endwhile; ?>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

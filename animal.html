@@ -1,0 +1,38 @@
+<?php
+include 'config.php';
+
+if(isset($_GET['tag'])){
+    $tag = trim($_GET['tag']);
+    $result = mysqli_query($conn, "SELECT * FROM animals WHERE animal_tag='$tag'");
+    $animal = mysqli_fetch_assoc($result);
+    if(!$animal){
+        die("<h2 style='color:red; text-align:center;'>❌ No animal found with tag: $tag</h2>");
+    }
+} else {
+    die("<h2 style='color:red; text-align:center;'>❌ No tag provided</h2>");
+}
+?>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Animal Profile - <?php echo $animal['animal_tag']; ?></title>
+  <style>
+    body { font-family: Arial; background: #f8fafc; text-align: center; padding: 20px; }
+    .card { background: white; padding: 20px; border-radius: 10px; max-width: 400px; margin: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+    h1 { color: #2563eb; }
+    p { font-size: 1rem; margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1> (<?php echo $animal['animal_tag']; ?>)</h1>
+    <p><b>Type:</b> <?php echo $animal['type']; ?></p>
+    <p><b>Age:</b> <?php echo $animal['age']; ?> years</p>
+    <p><b>Health:</b> <?php echo $animal['health_status']; ?></p>
+    <p><b>Added On:</b> <?php echo $animal['created_at']; ?></p>
+    <a href="scan.php" style="background-color: blue; height: 52px;; width: 25px; text-decoration: none; color: white;"> Scan Again</a>
+        <a href="index.php">Home</a>
+
+  </div>
+</body>
+</html>

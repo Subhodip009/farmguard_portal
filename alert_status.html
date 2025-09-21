@@ -1,0 +1,165 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/config.php';
+
+// Protect admin page
+if (!isset($_SESSION['worker_id']) || $_SESSION['role'] !== 'admin') {
+    header("Location: ../login.php");
+    exit;
+}
+
+$status_filter = $_GET['status'] ?? 'all';
+
+// Build query
+if ($status_filter === 'pending') {
+    $result = $conn->query("SELECT alerts.*, workers.username 
+                            FROM alerts 
+                            JOIN workers ON alerts.assigned_to = workers.id 
+                            WHERE alerts.status='pending' 
+                            ORDER BY alerts.date DESC");
+} elseif ($status_filter === 'done') {
+    $result = $conn->query("SELECT alerts.*, workers.username 
+                            FROM alerts 
+                            JOIN workers ON alerts.assigned_to = workers.id 
+                            WHERE alerts.status='done' 
+                            ORDER BY alerts.date DESC");
+} else {
+    $result = $conn->query("SELECT alerts.*, workers.username 
+                            FROM alerts 
+                            JOIN workers ON alerts.assigned_to = workers.id 
+                            ORDER BY alerts.date DESC");
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Manage Alerts - Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family:Arial, sans-serif; background:#f9fafb; }
+/* Header */
+    header {
+      background:#2563eb; color:white; padding:1rem;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    header .left { display:flex; align-items:center; gap:1rem; }
+    header .logo { font-weight:bold; font-size:1.2rem; }
+    .menu-toggle { display:none; cursor:pointer; font-size:1.2rem; background:#1e3a8a; padding:0.4rem 0.8rem; border-radius:6px; }
+
+    .menu-toggle { display:none; cursor:pointer; padding:0.4rem 0.8rem; background:#1e3a8a; border-radius:6px; }
+    .container { display:grid; grid-template-columns:220px 1fr; min-height:90vh; }
+    nav { background:#1e3a8a; padding:1rem; transition: transform 0.3s ease; }
+    nav ul { list-style:none; padding:0; }
+    nav ul li { margin:1rem 0; }
+    nav ul li a { color:white; text-decoration:none; padding:0.6rem; display:block; border-radius:8px; }
+    nav ul li a.active, nav ul li a:hover { background:#3b82f6; }
+    nav ul li.logout a { background:#dc2626; }
+
+    main { padding:2rem; }
+    h1 { color:#2563eb; margin-top:0; }
+
+    .filters { margin-bottom:1rem; }
+    .filters a { margin-right:1rem; text-decoration:none; padding:0.4rem 0.8rem; border-radius:6px; }
+    .btn { font-size:0.85rem; }
+    .btn-pending { background:#f59e0b; color:white; }
+    .btn-done { background:#16a34a; color:white; }
+    .btn-all { background:#6b7280; color:white; }
+
+    table { width:100%; border-collapse:collapse; margin-top:1rem; background:white; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    th, td { padding:0.8rem; border:1px solid #ddd; text-align:left; }
+    th { background:#f1f5f9; }
+
+    footer { text-align:center; padding:1rem; background:#1e3a8a; color:white; }
+
+    @media (max-width:768px) {
+      .container { grid-template-columns:1fr; }
+      nav { position:fixed; left:0; top:0; bottom:0; width:220px; transform:translateX(-100%); z-index:1000; }
+      nav.active { transform:translateX(0); }
+      .menu-toggle { display:block; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="left">
+      <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+      <div class="logo">FarmGuard Admin</div>
+    </div>
+    <div>Welcome, <?= htmlspecialchars($_SESSION['username']); ?></div>
+  </header>
+
+  <div class="container">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <ul>
+        <li><a href="index.html" >Dashboard</a></li>
+        <li><a href="users.html">Manage Workers</a></li>
+        <li><a href="visitors.html">Visitors</a></li>
+        <li><a href="health.html">Animal Health</a></li>
+        <li><a href="alerts.html">Alerts</a></li>
+                <li><a href="alert_status.html">Alerts Status</a></li>
+        <li><a href="reports.html"  >Reports</a></li>
+        <li><a href="add_animal.html" class="active">Add Animal</a></li>
+        <li><a href="scan.html">Scan QR</a></li>
+        <li><a href="aibot.html">Talk to AI</a></li>
+        <li class="logout"><a href="../logout.html">Logout</a></li>
+      </ul>
+    </nav>
+
+    <!-- Main -->
+    <main>
+      <h1>Manage Alerts</h1>
+
+      <!-- Filters -->
+      <div class="filters">
+        <a class="btn btn-all" href="?status=all">All</a>
+        <a class="btn btn-pending" href="?status=pending">Pending</a>
+        <a class="btn btn-done" href="?status=done">Done</a>
+      </div>
+
+      <table>
+        <tr>
+          <th>ID</th>
+          <th>Message</th>
+          <th>Staff</th>
+          <th>Date</th>
+          <th>Status</th>
+        </tr>
+        <?php while($row=$result->fetch_assoc()): ?>
+          <tr>
+            <td><?= $row['id'] ?></td>
+            <td><?= htmlspecialchars($row['message']) ?></td>
+            <td><?= htmlspecialchars($row['username']) ?></td>
+            <td><?= $row['date'] ?></td>
+            <td>
+              <?php if ($row['status'] === 'pending'): ?>
+                <span style="color:#f59e0b; font-weight:bold;">Pending</span>
+              <?php else: ?>
+                <span style="color:#16a34a; font-weight:bold;">Done</span>
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endwhile; ?>
+      </table>
+    </main>
+  </div>
+
+  <footer>
+    <p>© 2025 FarmGuard | Admin Panel</p>
+  </footer>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById("sidebar").classList.toggle("active");
+    }
+    document.querySelectorAll("#sidebar a").forEach(link=>{
+      link.addEventListener("click", ()=> {
+        if (window.innerWidth <= 768) {
+          document.getElementById("sidebar").classList.remove("active");
+        }
+      });
+    });
+  </script>
+</body>
+</html>

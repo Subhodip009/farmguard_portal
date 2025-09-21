@@ -1,0 +1,136 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/config.php';
+
+// Protect page: only logged-in users
+if (!isset($_SESSION['worker_id'])) {
+    header("Location: ../login.php");
+    exit;
+}
+
+$role = $_SESSION['role'];
+$username = $_SESSION['username'];
+
+// Set colors & sidebar based on role
+if ($role === 'admin') {
+    $themeColor = "#2563eb"; // blue
+    $darkColor = "#1e3a8a";
+    $logoText = "FarmGuard Admin";
+    $sidebarLinks = [
+        "index.php"     => "Dashboard",
+        "users.php"     => "Manage Workers",
+        "visitors.php"  => "Visitors",
+        "health.php"    => "Animal Health",
+        "alerts.php"    => "Alerts",
+        "alert_status.php" => "Alart Status",
+        "reports.php"   => "Reports",
+        "add_animal.php"     => "Add Animals",
+        "qr_scan.php"   => "QR Scanner",
+        "aibot.php"    => "Talk to AI"
+    ];
+} else {
+    $themeColor = "#16a34a"; // green
+    $darkColor = "#14532d";
+    $logoText = "FarmGuard Staff";
+    $sidebarLinks = [
+        "index.php"        => "Dashboard",
+        "my_activities.php"=> "My Activities",
+        "my_alerts.php"    => "My Alerts",
+        "qr_scan.php"      => "QR Scanner",
+        "profile.php"      => "Profile"
+    ];
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QR Scanner - <?= $logoText ?></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family:Arial, sans-serif; background:#f9fafb; }
+    header { background:<?= $themeColor ?>; color:white; padding:1rem; display:flex; justify-content:space-between; align-items:center; }
+    .menu-toggle { display:none; cursor:pointer; padding:0.4rem 0.8rem; background:<?= $darkColor ?>; border-radius:6px; }
+    .container { display:grid; grid-template-columns:220px 1fr; min-height:90vh; }
+    nav { background:<?= $darkColor ?>; padding:1rem; transition: transform 0.3s ease; }
+    nav ul { list-style:none; padding:0; }
+    nav ul li { margin:1rem 0; }
+    nav ul li a { color:white; text-decoration:none; padding:0.6rem; display:block; border-radius:8px; }
+    nav ul li a.active, nav ul li a:hover { background:<?= $themeColor ?>; }
+    nav ul li.logout a { background:#dc2626; }
+
+    main { padding:2rem; text-align:center; }
+    h1 { color:<?= $themeColor ?>; margin-top:0; }
+    #reader { width:100%; max-width:400px; margin:2rem auto; }
+    #result { margin-top:1rem; font-size:1.2rem; color:green; }
+
+    footer { text-align:center; padding:1rem; background:<?= $darkColor ?>; color:white; }
+
+    @media (max-width:768px) {
+      .container { grid-template-columns:1fr; }
+      nav { position:fixed; left:0; top:0; bottom:0; width:220px; transform:translateX(-100%); z-index:1000; }
+      nav.active { transform:translateX(0); }
+      .menu-toggle { display:block; }
+    }
+  </style>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+  <header>
+    <div class="left">
+      <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+      <div class="logo"><?= $logoText ?></div>
+    </div>
+    <div>Welcome, <?= htmlspecialchars($username); ?></div>
+  </header>
+
+  <div class="container">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <ul>
+        <?php foreach ($sidebarLinks as $file => $name): ?>
+          <li><a href="<?= $file ?>" class="<?= basename($_SERVER['PHP_SELF']) == $file ? 'active' : '' ?>"><?= $name ?></a></li>
+        <?php endforeach; ?>
+        <li class="logout"><a href="../logout.php">🚪 Logout</a></li>
+      </ul>
+    </nav>
+
+    <!-- Main -->
+    <main>
+      <h1>📷 Scan Animal QR</h1>
+      <div id="reader"></div>
+      <p id="result">Waiting for scan...</p>
+    </main>
+  </div>
+
+  <footer>
+    <p>© 2025 FarmGuard | <?= $role === 'admin' ? 'Admin Panel' : 'Staff Panel' ?></p>
+  </footer>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById("sidebar").classList.toggle("active");
+    }
+    document.querySelectorAll("#sidebar a").forEach(link=>{
+      link.addEventListener("click", ()=> {
+        if (window.innerWidth <= 768) {
+          document.getElementById("sidebar").classList.remove("active");
+        }
+      });
+    });
+
+    // ✅ QR Scanner Setup
+    function onScanSuccess(decodedText) {
+      document.getElementById("result").innerHTML = "✅ QR Code: " + decodedText;
+      if (decodedText.includes("animal.php?tag=")) {
+        window.location.href = decodedText;
+      }
+    }
+    function onScanError(err) { console.log(err); }
+
+    let scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    scanner.render(onScanSuccess, onScanError);
+  </script>
+</body>
+</html>
+

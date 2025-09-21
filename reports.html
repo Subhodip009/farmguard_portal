@@ -1,0 +1,176 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/config.php';
+
+// Protect admin page
+if (!isset($_SESSION['worker_id']) || $_SESSION['role'] !== 'admin') {
+    header("Location: ../login.php");
+    exit;
+}
+
+$success = "";
+$error = "";
+
+// Handle Export (CSV)
+if (isset($_GET['export']) && in_array($_GET['export'], ['activities', 'visitors', 'animal_health', 'alerts'])) {
+    $type = $_GET['export'];
+    $filename = $type . "_report_" . date("Y-m-d") . ".csv";
+
+    header("Content-Type: text/csv");
+    header("Content-Disposition: attachment; filename=$filename");
+
+    $output = fopen("php://output", "w");
+
+    if ($type === 'activities') {
+        fputcsv($output, ["ID", "Worker ID", "Activity", "Date"]);
+        $rows = $conn->query("SELECT * FROM activities ORDER BY date DESC");
+        while ($r = $rows->fetch_assoc()) {
+            fputcsv($output, $r);
+        }
+    } elseif ($type === 'visitors') {
+        fputcsv($output, ["ID", "Name", "Purpose", "Date"]);
+        $rows = $conn->query("SELECT * FROM visitors ORDER BY date DESC");
+        while ($r = $rows->fetch_assoc()) {
+            fputcsv($output, $r);
+        }
+    } elseif ($type === 'animal_health') {
+        fputcsv($output, ["ID", "Animal Tag", "Condition", "Treatment", "Date"]);
+        $rows = $conn->query("SELECT * FROM animal_health ORDER BY date DESC");
+        while ($r = $rows->fetch_assoc()) {
+            fputcsv($output, $r);
+        }
+    } elseif ($type === 'alerts') {
+        fputcsv($output, ["ID", "Staff ID", "Message", "Status", "Date"]);
+        $rows = $conn->query("SELECT * FROM alerts ORDER BY date DESC");
+        while ($r = $rows->fetch_assoc()) {
+            fputcsv($output, $r);
+        }
+    }
+
+    fclose($output);
+    exit;
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reports - FarmGuard Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family:Arial, sans-serif; background:#f9fafb; }
+    /* Header */
+    header {
+      background:#2563eb; color:white; padding:1rem;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    header .left { display:flex; align-items:center; gap:1rem; }
+    header .logo { font-weight:bold; font-size:1.2rem; }
+    .menu-toggle { display:none; cursor:pointer; font-size:1.2rem; background:#1e3a8a; padding:0.4rem 0.8rem; border-radius:6px; }
+
+    .menu-toggle { display:none; cursor:pointer; padding:0.4rem 0.8rem; background:#1e3a8a; border-radius:6px; }
+    .container { display:grid; grid-template-columns:220px 1fr; min-height:90vh; }
+    nav { background:#1e3a8a; padding:1rem; transition: transform 0.3s ease; }
+    nav ul { list-style:none; padding:0; }
+    nav ul li { margin:1rem 0; }
+    nav ul li a { color:white; text-decoration:none; padding:0.6rem; display:block; border-radius:8px; }
+    nav ul li a.active, nav ul li a:hover { background:#3b82f6; }
+    nav ul li.logout a { background:#dc2626; }
+
+    main { padding:2rem; }
+    h1 { color:#2563eb; margin-top:0; }
+
+    .report-card {
+      background:white;
+      padding:1rem;
+      border-radius:8px;
+      box-shadow:0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom:1rem;
+    }
+    .report-card h3 { margin:0 0 0.5rem; }
+    a.btn { display:inline-block; padding:0.5rem 1rem; margin-right:0.5rem; border-radius:6px; text-decoration:none; font-size:0.9rem; }
+    .btn-export { background:#16a34a; color:white; }
+    .btn-export:hover { background:#15803d; }
+
+    footer { text-align:center; padding:1rem; background:#1e3a8a; color:white; }
+
+    @media (max-width:768px) {
+      .container { grid-template-columns:1fr; }
+      nav { position:fixed; left:0; top:0; bottom:0; width:220px; transform:translateX(-100%); z-index:1000; }
+      nav.active { transform:translateX(0); }
+      .menu-toggle { display:block; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="left">
+      <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+      <div class="logo">FarmGuard Admin</div>
+    </div>
+    <div>Welcome, <?= htmlspecialchars($_SESSION['username']); ?></div>
+  </header>
+
+  <div class="container">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <ul>
+        <li><a href="index.html" >Dashboard</a></li>
+        <li><a href="users.html">Manage Workers</a></li>
+        <li><a href="visitors.html">Visitors</a></li>
+        <li><a href="health.html">Animal Health</a></li>
+        <li><a href="alerts.html">Alerts</a></li>
+                <li><a href="alert_status.html">Alerts Status</a></li>
+        <li><a href="reports.html"  >Reports</a></li>
+        <li><a href="add_animal.html" class="active">Add Animal</a></li>
+        <li><a href="scan.html">Scan QR</a></li>
+        <li><a href="aibot.html">Talk to AI</a></li>
+        <li class="logout"><a href="../logout.html">Logout</a></li>
+      </ul>
+    </nav>
+
+    <!-- Main -->
+    <main>
+      <h1>Reports</h1>
+      <p>Download data reports for your farm operations.</p>
+
+      <div class="report-card">
+        <h3>Daily Activities Report</h3>
+        <a class="btn btn-export" href="?export=activities">Export CSV</a>
+      </div>
+
+      <div class="report-card">
+        <h3>Visitor Report</h3>
+        <a class="btn btn-export" href="?export=visitors">Export CSV</a>
+      </div>
+
+      <div class="report-card">
+        <h3>Animal Health Report</h3>
+        <a class="btn btn-export" href="?export=animal_health">Export CSV</a>
+      </div>
+
+      <div class="report-card">
+        <h3>Alerts Report</h3>
+        <a class="btn btn-export" href="?export=alerts">Export CSV</a>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    <p>© 2025 FarmGuard | Admin Panel</p>
+  </footer>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById("sidebar").classList.toggle("active");
+    }
+    document.querySelectorAll("#sidebar a").forEach(link=>{
+      link.addEventListener("click", ()=> {
+        if (window.innerWidth <= 768) {
+          document.getElementById("sidebar").classList.remove("active");
+        }
+      });
+    });
+  </script>
+</body>
+</html>
